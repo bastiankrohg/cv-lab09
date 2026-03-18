@@ -1,7 +1,7 @@
 import numpy as np
 import pyvista as pv
 import cv2
-from pylie import SE3
+from pylie import SE3, SO3
 from common_lab_utils import PlaneWorldModel, PerspectiveCamera
 from pose_estimators import PoseEstimate
 
@@ -94,7 +94,17 @@ class ArRenderer:
 
         # Add AR object.
         # Add your own objects if you want to!
+        add_axis(self._plotter, SE3(), world_model.grid_length) 
+
+        self.world_model = world_model
+
+        # Add AR object.
         add_axis(self._plotter, SE3(), world_model.grid_length)
+
+        self._grid_length = world_model.grid_length
+        sphere = pv.Sphere(radius=self._grid_length * 0.1)
+        self._orbit_actor = self._plotter.add_mesh(sphere, color='orange')
+        self._frame = 0
 
         # Add a light
         self._plotter.add_light(pv.Light(light_type='scene light', position=(0, 0, 5)))
@@ -108,6 +118,15 @@ class ArRenderer:
 
         if not estimate.is_found():
             return None, None
+
+        self._frame += 1
+        angle = self._frame * 0.05
+        orbit_radius = self.world_model._grid_length * 1.5    # 1.5 grid squares out from centre
+        self._orbit_actor.SetPosition(
+            orbit_radius * np.cos(angle),
+            orbit_radius * np.sin(angle),
+            self.world_model._grid_length * 0.1               # just a sliver above the plane
+        )
 
         self._plotter.camera.model_transform_matrix = estimate.pose_w_c.inverse().to_matrix()
 
