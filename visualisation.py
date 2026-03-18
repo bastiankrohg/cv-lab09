@@ -5,6 +5,93 @@ from pylie import SE3, SO3
 from common_lab_utils import PlaneWorldModel, PerspectiveCamera
 from pose_estimators import PoseEstimate
 
+class ArCar:
+    """A controllable car that drives on the world plane."""
+
+    def __init__(self, plotter, grid_length, color='red', start_pos=(0.0, 0.0)):
+        self._grid_length = grid_length
+        self._pos = np.array(start_pos, dtype=float) * grid_length
+        self._heading = 0.0
+        self._speed = 0.0
+
+        # Build a simple car shape from a box
+        body = pv.Box(bounds=(
+            -0.4 * grid_length,  0.4 * grid_length,
+            -0.2 * grid_length,  0.2 * grid_length,
+             0.0 * grid_length,  0.15 * grid_length
+        ))
+        self._actor = plotter.add_mesh(body, color=color)
+
+    def _transform_matrix(self):
+        c, s = np.cos(self._heading), np.sin(self._heading)
+        T = np.eye(4)
+        T[:3, :3] = [[c, -s, 0],
+                     [s,  c, 0],
+                     [0,  0, 1]]
+        T[:3, 3] = [self._pos[0], self._pos[1], self._z]
+        return T
+
+    @property
+    def _z(self):
+        return 0.05 * self._grid_length  # fixed just above plane for car
+
+    def handle_input(self, keys: set):
+        g = self._grid_length
+        if 'w' in keys:
+            self._speed = g * 0.02
+        elif 's' in keys:
+            self._speed = -g * 0.02
+        else:
+            self._speed *= 0.85  # friction
+
+        if 'a' in keys:
+            self._heading += 0.03
+        if 'd' in keys:
+            self._heading -= 0.03
+
+    def update(self, keys: set):
+        self.handle_input(keys)
+        self._pos[0] += self._speed * np.cos(self._heading)
+        self._pos[1] += self._speed * np.sin(self._heading)
+        self._actor.user_matrix = self._transform_matrix()
+
+
+class ArDrone(ArCar):
+    """A controllable drone that extends ArCar with vertical movement."""
+
+    def __init__(self, plotter, grid_length, color='dodgerblue', start_pos=(0.0, 0.0)):
+        super().__init__(plotter, grid_length, color=color, start_pos=start_pos)
+        self._altitude = 0.5 * grid_length  # start hovering
+        self._vz = 0.0
+
+        # Add rotor discs on top of the body
+        for dx, dy in [(0.3, 0.3), (-0.3, 0.3), (0.3, -0.3), (-0.3, -0.3)]:
+            rotor = pv.Disc(
+                center=(dx * grid_length, dy * grid_length, 0.15 * grid_length),
+                normal=(0, 0, 1),
+                inner=0.0,
+                outer=0.15 * grid_length
+            )
+            plotter.add_mesh(rotor, color='gray')
+
+    @property
+    def _z(self):
+        return self._altitude  # overrides the fixed car height
+
+    def handle_input(self, keys: set):
+        super().handle_input(keys)  # reuse WASD for XY
+        g = self._grid_length
+
+        if 'r' in keys:
+            self._vz += g * 0.002   # ascend
+        elif 'f' in keys:
+            self._vz -= g * 0.002   # descend
+        else:
+            self._vz *= 0.85        # drag brings it to hover
+
+        self._altitude += self._vz
+        self._altitude = max(0.05 * g, self._altitude)  # don't go through floor
+
 class OrbitingSphere:
     """A sphere that orbits either the world origin or another OrbitingSphere."""
 
@@ -144,6 +231,9 @@ class ArRenderer:
 
         self._orbiters = [planet1, planet2, moon]
 
+        self._car   = ArCar(self._plotter, world_model._grid_length, color='red',        start_pos=(-1.0, 0.0))
+        self._drone = ArDrone(self._plotter, world_model._grid_length, color='dodgerblue', start_pos=( 1.0, 0.0))
+
 
         # Add a light
         self._plotter.add_light(pv.Light(light_type='scene light', position=(0, 0, 5)))
@@ -152,14 +242,22 @@ class ArRenderer:
         self._plotter.show(title="AR visualisation", window_size=[img_width, img_height],
                            interactive=False, interactive_update=True)
 
-    def update(self, estimate: PoseEstimate):
+    def update(self, estimate: PoseEstimate, keys: set):
         """Updates the renderer with new camera pose estimate"""
 
         if not estimate.is_found():
             return None, None
+        
+        
+        if keys is None:
+            keys = set()
 
         for orb in self._orbiters:
             orb.update()        
+        
+        self._car.update(keys)
+        self._drone.update(keys)
+
 
         self._plotter.camera.model_transform_matrix = estimate.pose_w_c.inverse().to_matrix()
 

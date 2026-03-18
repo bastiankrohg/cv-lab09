@@ -71,15 +71,24 @@ def run_pose_estimation_lab():
         pose_estimation_duration_ms = (end - start) * 1000.0
 
         # Update Augmented Reality visualization.
+        key = cv2.pollKey()
+        keys = set()
+        if key == ord('w'): keys.add('w')
+        if key == ord('a'): keys.add('a')
+        if key == ord('s'): keys.add('s')
+        if key == ord('d'): keys.add('d')
+        if key == ord('r'): keys.add('r')  
+        if key == ord('f'): keys.add('f')  
+
         ar_frame = undistorted_frame.copy()
-        ar_rendering, mask = ar_renderer.update(estimate)
+        ar_rendering, mask = ar_renderer.update(estimate, keys)
         if ar_rendering is not None:
             ar_frame[mask] = ar_rendering[mask]
         print_info_in_image(ar_frame, estimate, matching_duration_ms, pose_estimation_duration_ms, show_inliers=True)
 
         # Update the windows.
         cv2.imshow("AR visualisation", ar_frame)
-        key = cv2.pollKey()
+
         do_exit = (key == ord('q')) or scene_3d.update(undistorted_frame, estimate)
         if do_exit:
             break
