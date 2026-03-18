@@ -190,11 +190,10 @@ class HomographyPoseEstimator:
         # TODO 5: Construct R.
         # Construct R by inserting R_bar and computing the third column of R from the two first. The third is the cross product of the first two
         # Remember to check det(R)!
-        R_3 = np.cross(R_bar[:, 0], R_bar[:, 1]) # R_3 = R_bar_1 x R_bar_2
-        R = np.hstack((R_bar, R_3))              # R = [R_bar | R_3]
+        R = np.c_[R_bar, np.cross(R_bar[:, 0], R_bar[:, 1])]
 
         # Check if det(R) = 1
-        print(f"det(R) = {np.linalg.det(R)}")
+        # print(f"det(R) = {np.linalg.det(R)}") # OK! 
 
         # TODO 6: Compute the scale.
         # Compute the scale factor.
@@ -217,8 +216,6 @@ class HomographyPoseEstimator:
             # Switch to other solution.
             t = -t
             R[:, :2] *= -1.
-
-
 
         # We now have the pose of the world in the camera frame!
         pose_c_w = SE3((SO3(R), t))
