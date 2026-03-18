@@ -42,9 +42,8 @@ Compute the scale according to
 ## 7. Find the correct solution
 Use *&lambda;* and **M** to compute the translation up to the correct sign.
 
-- We can check if we have the correct solution by testing the last element of **t**.
-  - How?
-
+- The correct solution will have the world plane in front of the camera.
+  - How can you check this? (The class has conveniently stored the centre pixel for us)
 - Choose the other solution if this check fails.
 
 Run and test the pose estimator!

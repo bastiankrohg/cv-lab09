@@ -77,7 +77,7 @@ class PrecalibratedMotionOnlyBAObjective:
             A[rows, :] = self.extract_measurement_jacobian(j, pose_state_c_w, self.measurement)
             b[rows, :] = self.extract_measurement_error(j, pose_state_c_w, self.measurement)
 
-        return A, b, b.T.dot(b)
+        return A, b, b.T.dot(b).item()
 
 
 def gauss_newton(x_init, model, cost_thresh=1e-9, delta_thresh=1e-9, max_num_it=20):

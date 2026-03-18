@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import timeit
 from pylie import (SE3, SO3)
-from common_lab_utils import (PerspectiveCamera, PlaneWorldModel, Size)
+from common_lab_utils import (PerspectiveCamera, PlaneWorldModel, Size, hnormalized)
 from pose_estimators import (MobaPoseEstimator, PoseEstimate, PnPPoseEstimator)
 from visualisation import (ArRenderer, Scene3D, print_info_in_image)
 
@@ -145,6 +145,7 @@ class HomographyPoseEstimator:
         :param camera_model: The camera model for the calibrated camera.
         """
 
+        self._principal_point_h = camera_model.calibration_matrix[:, [2]]
         self._calibration_matrix_inv = camera_model.calibration_matrix_inv
 
     def estimate(self, image_points, world_points):
@@ -159,11 +160,11 @@ class HomographyPoseEstimator:
             return PoseEstimate()
 
         # Compute the homography.
-        H, inlier_mask = cv2.findHomography(world_points, image_points, cv2.RANSAC, 3)
+        H_image_plane, inlier_mask = cv2.findHomography(world_points, image_points, cv2.RANSAC, 3)
         inliers = inlier_mask.ravel() > 0
 
         # Check that we have a valid result and enough inliers.
-        if H is None or inliers.sum() < min_number_points:
+        if H_image_plane is None or inliers.sum() < min_number_points:
             return PoseEstimate()
 
         # Extract inliers.
@@ -198,6 +199,9 @@ class HomographyPoseEstimator:
         # TODO 7: Find the correct solution.
         # Extract the translation t.
         t = np.zeros([3, 1])        # Dummy, replace!
+
+        # Check that this is the correct solution by projecting the centre pixel onto the world plane and back again.
+        # The point x_c should be in front of the camera.
 
         # We now have the pose of the world in the camera frame!
         pose_c_w = SE3((SO3(R), t))

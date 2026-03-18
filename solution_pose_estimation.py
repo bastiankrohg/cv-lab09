@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import timeit
 from pylie import (SE3, SO3)
-from common_lab_utils import (PerspectiveCamera, PlaneWorldModel, Size)
+from common_lab_utils import (PerspectiveCamera, PlaneWorldModel, Size, hnormalized)
 from pose_estimators import (MobaPoseEstimator, PoseEstimate, PnPPoseEstimator)
 from visualisation import (ArRenderer, Scene3D, print_info_in_image)
 
@@ -147,6 +147,7 @@ class HomographyPoseEstimator:
         :param camera_model: The camera model for the calibrated camera.
         """
 
+        self._principal_point_h = camera_model.calibration_matrix[:, [2]]
         self._calibration_matrix_inv = camera_model.calibration_matrix_inv
 
     def estimate(self, image_points, world_points):
@@ -161,11 +162,11 @@ class HomographyPoseEstimator:
             return PoseEstimate()
 
         # Compute the homography.
-        H, inlier_mask = cv2.findHomography(world_points, image_points, cv2.RANSAC, 3)
+        H_image_plane, inlier_mask = cv2.findHomography(world_points, image_points, cv2.RANSAC, 3)
         inliers = inlier_mask.ravel() > 0
 
         # Check that we have a valid result and enough inliers.
-        if H is None or inliers.sum() < min_number_points:
+        if H_image_plane is None or inliers.sum() < min_number_points:
             return PoseEstimate()
 
         # Extract inliers.
@@ -174,7 +175,7 @@ class HomographyPoseEstimator:
 
         # TODO 3: Compute M.
         # Compute the matrix M and extract M_bar (the two first columns of M).
-        M = self._calibration_matrix_inv @ H
+        M = self._calibration_matrix_inv @ H_image_plane
         M_bar = M[:, :2]
 
         # Perform SVD on M_bar.
@@ -204,8 +205,12 @@ class HomographyPoseEstimator:
         # Extract the translation t.
         t = M[:, [2]] * scale
 
-        # Check that this is the correct solution by testing the last element of t.
-        if t[-1] < 0:
+        # Check that this is the correct solution by projecting the centre pixel onto the world plane and back again.
+        # The point x_c should be in front of the camera.
+        x_plane = hnormalized(np.linalg.inv(H_image_plane) @ self._principal_point_h)
+        x_w = np.r_[x_plane, [[0]]]
+        x_c = R @ x_w + t
+        if x_c[-1] < 0:
             # Switch to other solution.
             t = -t
             R[:, :2] *= -1.
