@@ -208,9 +208,17 @@ class HomographyPoseEstimator:
         # Use the scale and M to compute the translation t
         t = M[:, [2]] * scale
 
-
         # Check that this is the correct solution by projecting the centre pixel onto the world plane and back again.
         # The point x_c should be in front of the camera.
+        x_plane = hnormalized(np.linalg.inv(H_image_plane) @ self._principal_point_h)
+        x_w = np.r_[x_plane, [[0]]]
+        x_c = R @ x_w + t
+        if x_c[-1] < 0:
+            # Switch to other solution.
+            t = -t
+            R[:, :2] *= -1.
+
+
 
         # We now have the pose of the world in the camera frame!
         pose_c_w = SE3((SO3(R), t))
