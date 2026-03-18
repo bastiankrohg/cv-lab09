@@ -173,7 +173,7 @@ class HomographyPoseEstimator:
 
         # TODO 3: Compute M.
         # Compute the matrix M and extract M_bar (the two first columns of M).
-        M = np.identity(3)          # Dummy, replace!
+        M = self._calibration_matrix_inv @ H_image_plane # M = K^-1 * H_iPi
         M_bar = M[:, :2]
 
         # Perform SVD on M_bar.
@@ -185,20 +185,29 @@ class HomographyPoseEstimator:
 
         # TODO 4: Compute R_bar.
         # Compute R_bar (the two first columns of R) from the result of the SVD.
-        R_bar = np.zeros([3, 2])    # Dummy, replace!
+        R_bar = U @ Vh                    # R_bar = U * V^T
 
         # TODO 5: Construct R.
-        # Construct R by inserting R_bar and computing the third column of R from the two first.
+        # Construct R by inserting R_bar and computing the third column of R from the two first. The third is the cross product of the first two
         # Remember to check det(R)!
-        R = np.identity(3)          # Dummy, replace!
+        R_3 = np.cross(R_bar[:, 0], R_bar[:, 1]) # R_3 = R_bar_1 x R_bar_2
+        R = np.hstack((R_bar, R_3))              # R = [R_bar | R_3]
+
+        # Check if det(R) = 1
+        print(f"det(R) = {np.linalg.det(R)}")
 
         # TODO 6: Compute the scale.
         # Compute the scale factor.
-        scale = 0.                  # Dummy, replace!
+        # scale = trace(R_bar_star^T * M_bar) / trace(M_bar^T * M_bar) = sum of element-wise product of R_bar and M_bar / sum of element-wise product of M_bar and M_bar
+        scale  = np.trace(R_bar.T @ M_bar) / np.trace(M_bar.T @ M_bar)
+        # or 
+        #scale = (R_bar * M_bar).sum() / (M_bar**2).sum()
 
         # TODO 7: Find the correct solution.
-        # Extract the translation t.
-        t = np.zeros([3, 1])        # Dummy, replace!
+        # Extract the translation t. 
+        # Use the scale and M to compute the translation t
+        t = M[:, [2]] * scale
+
 
         # Check that this is the correct solution by projecting the centre pixel onto the world plane and back again.
         # The point x_c should be in front of the camera.
