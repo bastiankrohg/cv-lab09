@@ -19,6 +19,10 @@ def run_pose_estimation_lab():
     # TODO 3-7: Implement HomographyPoseEstimator below.
     # Construct pose estimator.
     pose_estimator = HomographyPoseEstimator(camera_model)
+    #pose_estimator = PnPPoseEstimator(camera_model, do_iterative_estimation=False)
+    #pose_estimator = PnPPoseEstimator(camera_model, do_iterative_estimation=True)
+
+    pose_estimator = MobaPoseEstimator(pose_estimator, camera_model)
 
     # Construct AR visualizer.
     ar_renderer = ArRenderer(world_model, camera_model)

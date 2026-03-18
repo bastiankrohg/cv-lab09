@@ -112,6 +112,7 @@ class MobaPoseEstimator:
 
         # Optimize and update estimate.
         states, cost, _, _ = levenberg_marquardt(estimate.pose_w_c, objective)
+        #states, cost, _, _ = gauss_newton(estimate.pose_w_c, objective)
         estimate.pose_w_c = states[-1]
 
         # Print cost.
