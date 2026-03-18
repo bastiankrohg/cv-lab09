@@ -6,26 +6,37 @@ from common_lab_utils import PlaneWorldModel, PerspectiveCamera
 from pose_estimators import PoseEstimate
 
 class OrbitingSphere:
-    """A sphere that orbits the world origin in an elliptical path with Kepler-like speed."""
+    """A sphere that orbits either the world origin or another OrbitingSphere."""
 
-    def __init__(self, plotter, grid_length, semi_major, semi_minor, color='orange', speed=0.3, phase=0.0):
+    def __init__(self, plotter, grid_length, semi_major, semi_minor=None, 
+                 color='orange', speed=0.3, phase=0.0, parent=None):
         self._a = grid_length * semi_major
-        self._b = grid_length * semi_minor
+        self._b = grid_length * (semi_minor if semi_minor is not None else semi_major)  # circle if no semi_minor
         self._speed = grid_length * speed
         self._angle = phase
+        self._parent = parent  # if set, orbits around this object instead of the origin
 
-        sphere = pv.Sphere(radius=grid_length * 0.1)
+        sphere = pv.Sphere(radius=grid_length * (0.05 if parent else 0.1))  # moon is smaller
         self._actor = plotter.add_mesh(sphere, color=color)
+        
+        self._x = 0.0
+        self._y = 0.0
+
+    @property
+    def position(self):
+        return self._x, self._y
 
     def update(self):
         r = np.sqrt((self._a * np.cos(self._angle))**2 + (self._b * np.sin(self._angle))**2)
         self._angle += self._speed / (r + 1e-6)
 
-        self._actor.SetPosition(
-            self._a * np.cos(self._angle),
-            self._b * np.sin(self._angle),
-            0.0
-        )
+        # Orbit around parent position if we have one, otherwise around origin
+        px, py = self._parent.position if self._parent else (0.0, 0.0)
+
+        self._x = px + self._a * np.cos(self._angle)
+        self._y = py + self._b * np.sin(self._angle)
+
+        self._actor.SetPosition(self._x, self._y, 0.0)
 
 class Scene3D:
     """Visualises the lab in 3D"""
@@ -117,10 +128,22 @@ class ArRenderer:
         # Add your own objects if you want to!
         add_axis(self._plotter, SE3(), world_model.grid_length) 
 
-        self._orbiters = [
-            OrbitingSphere(self._plotter, world_model.grid_length, semi_major=2.0, semi_minor=1.0, color='orange', phase=0.0),
-            OrbitingSphere(self._plotter, world_model.grid_length, semi_major=2.0, semi_minor=1.0, color='cyan',   phase=np.pi),
-        ]
+
+        planet1 = OrbitingSphere(self._plotter, world_model._grid_length,
+                         semi_major=2.0, semi_minor=1.0,   # elliptical
+                         color='orange', phase=0.0)
+
+        planet2 = OrbitingSphere(self._plotter, world_model._grid_length,
+                                semi_major=1.5,                    # circular (no semi_minor)
+                                color='cyan', phase=np.pi)
+
+        moon = OrbitingSphere(self._plotter, world_model._grid_length,
+                            semi_major=0.4,                       # tight orbit around planet1
+                            color='white', speed=0.1, phase=0.0,
+                            parent=planet1)                       # orbits around planet1 instead of the origin
+
+        self._orbiters = [planet1, planet2, moon]
+
 
         # Add a light
         self._plotter.add_light(pv.Light(light_type='scene light', position=(0, 0, 5)))
