@@ -5,6 +5,27 @@ from pylie import SE3, SO3
 from common_lab_utils import PlaneWorldModel, PerspectiveCamera
 from pose_estimators import PoseEstimate
 
+class OrbitingSphere:
+    """A sphere that orbits the world origin in an elliptical path with Kepler-like speed."""
+
+    def __init__(self, plotter, grid_length, semi_major, semi_minor, color='orange', speed=0.3, phase=0.0):
+        self._a = grid_length * semi_major
+        self._b = grid_length * semi_minor
+        self._speed = grid_length * speed
+        self._angle = phase
+
+        sphere = pv.Sphere(radius=grid_length * 0.1)
+        self._actor = plotter.add_mesh(sphere, color=color)
+
+    def update(self):
+        r = np.sqrt((self._a * np.cos(self._angle))**2 + (self._b * np.sin(self._angle))**2)
+        self._angle += self._speed / (r + 1e-6)
+
+        self._actor.SetPosition(
+            self._a * np.cos(self._angle),
+            self._b * np.sin(self._angle),
+            0.0
+        )
 
 class Scene3D:
     """Visualises the lab in 3D"""
@@ -96,15 +117,10 @@ class ArRenderer:
         # Add your own objects if you want to!
         add_axis(self._plotter, SE3(), world_model.grid_length) 
 
-        self.world_model = world_model
-
-        # Add AR object.
-        add_axis(self._plotter, SE3(), world_model.grid_length)
-
-        self._grid_length = world_model.grid_length
-        sphere = pv.Sphere(radius=self._grid_length * 0.1)
-        self._orbit_actor = self._plotter.add_mesh(sphere, color='orange')
-        self._frame = 0
+        self._orbiters = [
+            OrbitingSphere(self._plotter, world_model.grid_length, semi_major=2.0, semi_minor=1.0, color='orange', phase=0.0),
+            OrbitingSphere(self._plotter, world_model.grid_length, semi_major=2.0, semi_minor=1.0, color='cyan',   phase=np.pi),
+        ]
 
         # Add a light
         self._plotter.add_light(pv.Light(light_type='scene light', position=(0, 0, 5)))
@@ -119,14 +135,8 @@ class ArRenderer:
         if not estimate.is_found():
             return None, None
 
-        self._frame += 1
-        angle = self._frame * 0.05
-        orbit_radius = self.world_model._grid_length * 1.5    # 1.5 grid squares out from centre
-        self._orbit_actor.SetPosition(
-            orbit_radius * np.cos(angle),
-            orbit_radius * np.sin(angle),
-            self.world_model._grid_length * 0.1               # just a sliver above the plane
-        )
+        for orb in self._orbiters:
+            orb.update()        
 
         self._plotter.camera.model_transform_matrix = estimate.pose_w_c.inverse().to_matrix()
 
